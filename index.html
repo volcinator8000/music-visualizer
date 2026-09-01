@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Harmonic Workshop — see what you hear</title>
+<meta name="description" content="An interactive audio workshop: guitar pedals, notes and chords, amp EQ, instrument timbre, and a math mode with FFT and 2D noise cancelling. Runs entirely in your browser.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="brand">
+      <b>🎛️ Harmonic Workshop</b>
+      <span>see what you hear</span>
+    </div>
+    <button class="power" id="power"><span class="led"></span><span id="power-label">Power on</span></button>
+    <div class="vol">
+      <span>VOL</span>
+      <input type="range" id="master-vol" min="0" max="1" step="0.01" value="0.55">
+      <span id="master-vol-v">55%</span>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-view="instruments" class="active">Instruments</button>
+    <button data-view="notes">Notes &amp; Chords</button>
+    <button data-view="amp">Amp &amp; EQ</button>
+    <button data-view="pedals">Pedalboard</button>
+    <button data-view="math">Math Mode</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ==================================================== INSTRUMENTS -->
+<section class="view active" id="v-instruments">
+  <div class="split">
+    <div>
+      <div class="card">
+        <h3>Instrument</h3>
+        <div class="chips" id="inst-list"></div>
+        <div class="hint" id="inst-desc"></div>
+      </div>
+      <div class="card">
+        <h3>Performance</h3>
+        <div class="ctl">
+          <label>Octave <span class="val" id="inst-oct-v">0</span></label>
+          <input type="range" id="inst-oct" min="-2" max="2" step="1" value="0">
+        </div>
+        <div class="ctl">
+          <label>Velocity <span class="val" id="inst-vel-v">80%</span></label>
+          <input type="range" id="inst-vel" min="0.05" max="1" step="0.01" value="0.8">
+        </div>
+        <div class="row wrap">
+          <button class="btn" id="inst-demo">▶ Play demo phrase</button>
+          <button class="btn" id="inst-chord">Strum chord</button>
+        </div>
+        <div class="hint">Click or drag the keys. Your computer keyboard works too:
+          <code>A W S E D F T G Y H U J K</code> = one octave, <code>Z</code>/<code>X</code> shift octaves.</div>
+      </div>
+      <div class="card">
+        <h3>Timbre fingerprint</h3>
+        <div class="viz"><canvas id="inst-harm" data-h="150"></canvas></div>
+        <div class="hint">The relative strength of harmonic 1, 2, 3… is <b>why</b> a flute and a
+          trumpet playing the same note are still instantly distinguishable. Pitch is the
+          fundamental; timbre is everything stacked above it.</div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h3>Keyboard</h3>
+        <div class="keys" id="inst-keys"></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Waveform · time domain</h3>
+          <div class="viz"><canvas id="inst-scope" data-h="210"></canvas><div class="tag">Amplitude vs time</div></div>
+        </div>
+        <div class="card">
+          <h3>Spectrum · frequency domain</h3>
+          <div class="viz"><canvas id="inst-spec" data-h="210"></canvas><div class="tag">Level vs frequency (log)</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Readout</h3>
+        <div class="grid3" id="inst-facts"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== NOTES & CHORDS -->
+<section class="view" id="v-notes">
+  <div class="split">
+    <div>
+      <div class="card">
+        <h3>Build a chord</h3>
+        <div class="ctl">
+          <label>Root</label>
+          <select id="chord-root"></select>
+        </div>
+        <div class="ctl">
+          <label>Quality</label>
+          <select id="chord-type"></select>
+        </div>
+        <div class="ctl">
+          <label>Octave <span class="val" id="chord-oct-v">4</span></label>
+          <input type="range" id="chord-oct" min="2" max="6" step="1" value="4">
+        </div>
+        <div class="ctl">
+          <label>Voice</label>
+          <select id="notes-inst"></select>
+        </div>
+        <div class="row wrap">
+          <button class="btn on" id="notes-play">▶ Sound it</button>
+          <button class="btn" id="notes-arp">Arpeggiate</button>
+          <button class="btn" id="notes-clear">Clear</button>
+        </div>
+        <div class="hint">Or click keys directly to build any stack of notes you like —
+          the analysis below follows whatever is selected.</div>
+      </div>
+      <div class="card">
+        <h3>Interval analysis</h3>
+        <div class="scroll-x"><table class="data" id="notes-table"></table></div>
+        <div class="hint" id="notes-consonance"></div>
+      </div>
+      <div class="card">
+        <h3>Beating &amp; roughness</h3>
+        <div class="viz"><canvas id="notes-beat" data-h="120"></canvas><div class="tag r">Sum envelope</div></div>
+        <div class="hint">Two close frequencies produce an amplitude wobble at exactly
+          <code>|f₁ − f₂|</code> Hz — the physical origin of "out of tune". Below ~20 Hz you hear
+          it as beating; above that it turns into a rough, dissonant buzz.</div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h3>Keyboard <span class="badge" id="notes-sel">—</span></h3>
+        <div class="keys" id="notes-keys"></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Combined waveform</h3>
+          <div class="viz"><canvas id="notes-scope" data-h="200"></canvas><div class="tag">Interference of all notes</div></div>
+        </div>
+        <div class="card">
+          <h3>Spectrum</h3>
+          <div class="viz"><canvas id="notes-spec" data-h="200"></canvas><div class="tag">Partials of every note</div></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Lissajous · consonance</h3>
+          <div class="viz"><canvas id="notes-liss" data-h="230"></canvas><div class="tag">f₁ vs f₂ phase plot</div></div>
+          <div class="hint">Simple frequency ratios draw simple, stable closed curves —
+            that geometric simplicity <i>is</i> consonance. A tritone (45:32) never closes.</div>
+        </div>
+        <div class="card">
+          <h3>Guitar fretboard</h3>
+          <div class="viz"><canvas id="notes-fret" data-h="230"></canvas><div class="tag">Standard EADGBE</div></div>
+          <div class="hint">Every place the selected pitch classes appear in the first 15 frets.
+            Amber = root.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== AMP -->
+<section class="view" id="v-amp">
+  <div class="split wide">
+    <div>
+      <div class="card">
+        <h3>Signal source</h3>
+        <div class="ctl">
+          <label>Feed the amp</label>
+          <select id="amp-src">
+            <option value="electric">Electric guitar chord</option>
+            <option value="acoustic">Acoustic guitar</option>
+            <option value="bass">Bass</option>
+            <option value="sweep">Sine sweep 20 Hz → 18 kHz</option>
+            <option value="pink">Pink-ish noise</option>
+            <option value="mic">Microphone / guitar input</option>
+          </select>
+        </div>
+        <div class="row wrap">
+          <button class="btn on" id="amp-strum">▶ Strike</button>
+          <button class="btn" id="amp-loop">Auto-repeat</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Preamp</h3>
+        <div class="ctl">
+          <label>Circuit</label>
+          <select id="amp-type">
+            <option value="soft">Tube (soft clip, even harmonics)</option>
+            <option value="hard">Solid state (hard clip, odd harmonics)</option>
+            <option value="fuzz">Fuzz (square-wave collapse)</option>
+            <option value="clean">Perfectly linear (reference)</option>
+          </select>
+        </div>
+        <div class="ctl">
+          <label>Gain <span class="val" id="amp-gain-v">20%</span></label>
+          <input type="range" id="amp-gain" min="0" max="1" step="0.01" value="0.2">
+        </div>
+        <div class="ctl">
+          <label>Master <span class="val" id="amp-master-v">60%</span></label>
+          <input type="range" id="amp-master" min="0" max="1" step="0.01" value="0.6">
+        </div>
+        <div class="hint">Gain sets how hard you slam the clipping stage; master sets loudness
+          after it. That is the whole reason a cranked amp sounds different from a loud clean one.</div>
+      </div>
+      <div class="card">
+        <h3>Tone stack</h3>
+        <div class="ctl">
+          <label>Bass · 100 Hz shelf <span class="val" id="amp-bass-v">0.0 dB</span></label>
+          <input type="range" id="amp-bass" min="-18" max="18" step="0.5" value="0">
+        </div>
+        <div class="ctl">
+          <label>Mid <span class="val" id="amp-mid-v">0.0 dB</span></label>
+          <input type="range" id="amp-mid" min="-18" max="18" step="0.5" value="0">
+        </div>
+        <div class="ctl">
+          <label>Mid frequency <span class="val" id="amp-midf-v">650 Hz</span></label>
+          <input type="range" id="amp-midf" min="200" max="2500" step="10" value="650">
+        </div>
+        <div class="ctl">
+          <label>Treble · 3.2 kHz shelf <span class="val" id="amp-treble-v">0.0 dB</span></label>
+          <input type="range" id="amp-treble" min="-18" max="18" step="0.5" value="0">
+        </div>
+        <div class="ctl">
+          <label>Presence · 6 kHz <span class="val" id="amp-presence-v">0.0 dB</span></label>
+          <input type="range" id="amp-presence" min="-12" max="12" step="0.5" value="0">
+        </div>
+        <div class="row wrap">
+          <button class="btn on" id="amp-cab">Cabinet sim</button>
+          <button class="btn" id="amp-flat">Flatten EQ</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Presets</h3>
+        <div class="chips" id="amp-presets"></div>
+      </div>
+    </div>
+    <div>
+      <div class="grid2">
+        <div class="card">
+          <h3>EQ frequency response</h3>
+          <div class="viz"><canvas id="amp-resp" data-h="230"></canvas><div class="tag">Gain vs frequency · ±24 dB</div></div>
+          <div class="hint">Computed directly from the live filter nodes with
+            <code>getFrequencyResponse()</code> — this is the actual curve your signal passes through.</div>
+        </div>
+        <div class="card">
+          <h3>Preamp transfer curve</h3>
+          <div class="viz"><canvas id="amp-xfer" data-h="230"></canvas><div class="tag">output vs input</div><div class="tag r" id="amp-xfer-tag"></div></div>
+          <div class="hint">A straight diagonal is clean. As it bends and flattens, peaks get
+            squashed and new harmonics appear — that bend <i>is</i> distortion.</div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Waveform · dry vs amped</h3>
+          <div class="viz"><canvas id="amp-scope" data-h="215"></canvas></div>
+          <div class="legend"><span><i style="background:#5d6880"></i>Dry input</span><span><i style="background:#ffb347"></i>Amp output</span></div>
+        </div>
+        <div class="card">
+          <h3>Spectrum · dry vs amped</h3>
+          <div class="viz"><canvas id="amp-spec" data-h="215"></canvas></div>
+          <div class="legend"><span><i style="background:#5d6880"></i>Dry</span><span><i style="background:#ffb347"></i>Amped</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Measured</h3>
+        <div class="grid3" id="amp-facts"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== PEDALS -->
+<section class="view" id="v-pedals">
+  <div class="split wide">
+    <div>
+      <div class="card">
+        <h3>Guitar into the chain</h3>
+        <div class="ctl">
+          <label>Source</label>
+          <select id="pedal-src">
+            <option value="electric">Electric guitar</option>
+            <option value="acoustic">Acoustic guitar</option>
+            <option value="bass">Bass</option>
+            <option value="saw">Sustained sawtooth</option>
+            <option value="sine">Sine 220 Hz</option>
+            <option value="mic">Microphone / guitar input</option>
+          </select>
+        </div>
+        <div class="ctl">
+          <label>What to play</label>
+          <select id="pedal-note">
+            <option value="chord">E minor chord</option>
+            <option value="power">E5 power chord</option>
+            <option value="single">Single note (E2)</option>
+            <option value="riff">Riff</option>
+          </select>
+        </div>
+        <div class="row wrap">
+          <button class="btn on" id="pedal-strum">▶ Strike</button>
+          <button class="btn" id="pedal-loop">Auto-repeat</button>
+          <button class="btn" id="pedal-bypass">Bypass all</button>
+        </div>
+        <div class="hint">Signal path is left-to-right, top-to-bottom through the board below —
+          the same order matters here as on a real pedalboard.</div>
+      </div>
+      <div class="card">
+        <h3>Signal chain</h3>
+        <div class="note" id="pedal-chain"></div>
+      </div>
+      <div class="card">
+        <h3>Transfer curve of the drive stage</h3>
+        <div class="viz"><canvas id="pedal-xfer" data-h="190"></canvas><div class="tag">out vs in</div></div>
+        <div class="hint" id="pedal-xfer-note"></div>
+      </div>
+    </div>
+    <div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Waveform · dry vs wet</h3>
+          <div class="viz"><canvas id="pedal-scope" data-h="215"></canvas></div>
+          <div class="legend"><span><i style="background:#5d6880"></i>Dry guitar</span><span><i style="background:#3ddbd9"></i>After pedals</span></div>
+        </div>
+        <div class="card">
+          <h3>Spectrum · dry vs wet</h3>
+          <div class="viz"><canvas id="pedal-spec" data-h="215"></canvas></div>
+          <div class="legend"><span><i style="background:#5d6880"></i>Dry</span><span><i style="background:#3ddbd9"></i>Wet</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Pedalboard</h3>
+        <div class="board" id="pedal-board"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== MATH MODE -->
+<section class="view" id="v-math">
+  <div class="subtabs" id="math-tabs">
+    <button class="btn on" data-sub="sum">Σ Frequency summing &amp; FFT</button>
+    <button class="btn" data-sub="anc">Noise cancelling in 2D</button>
+    <button class="btn" data-sub="conv">Sampling &amp; aliasing</button>
+  </div>
+
+  <!-- ---- sum + fft ---- -->
+  <div id="math-sum">
+    <div class="split wide">
+      <div>
+        <div class="card">
+          <h3>Partials</h3>
+          <div id="sum-list"></div>
+          <div class="row wrap" style="margin-top:10px">
+            <button class="btn sm" id="sum-add">+ Add partial</button>
+            <button class="btn sm" id="sum-play">▶ Hear it</button>
+            <button class="btn sm" id="sum-stop">■ Stop</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Presets</h3>
+          <div class="chips" id="sum-presets"></div>
+          <div class="hint" id="sum-preset-note"></div>
+        </div>
+        <div class="card">
+          <h3>Analysis settings</h3>
+          <div class="ctl">
+            <label>Window function</label>
+            <select id="sum-window">
+              <option value="hann">Hann</option>
+              <option value="hamming">Hamming</option>
+              <option value="blackman">Blackman</option>
+              <option value="rect">Rectangular (none)</option>
+            </select>
+          </div>
+          <div class="ctl">
+            <label>FFT size <span class="val" id="sum-n-v">2048</span></label>
+            <input type="range" id="sum-n" min="8" max="13" step="1" value="11">
+          </div>
+          <div class="ctl">
+            <label>Sample rate <span class="val" id="sum-sr-v">8000 Hz</span></label>
+            <input type="range" id="sum-sr" min="2000" max="24000" step="500" value="8000">
+          </div>
+          <div class="ctl">
+            <label>Noise floor <span class="val" id="sum-noise-v">0%</span></label>
+            <input type="range" id="sum-noise" min="0" max="0.6" step="0.01" value="0">
+          </div>
+          <div class="row wrap">
+            <button class="btn sm on" id="sum-logy">dB scale</button>
+            <button class="btn sm" id="sum-logx">Log frequency</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>x(t) = Σ Aₙ · sin(2π fₙ t + φₙ)</h3>
+          <div class="eq" id="sum-eq"></div>
+          <div class="viz"><canvas id="sum-wave" data-h="250"></canvas><div class="tag">Time domain · the sum</div><div class="tag r" id="sum-wave-tag"></div></div>
+          <div class="hint">Faint lines are the individual components; the bright line is their sum.
+            Nothing is "mixed" in any clever way — audio addition is literally
+            sample-by-sample arithmetic.</div>
+        </div>
+        <div class="card">
+          <h3>|X(k)| — discrete Fourier transform of the signal above</h3>
+          <div class="viz"><canvas id="sum-fft" data-h="250"></canvas><div class="tag">Magnitude spectrum</div><div class="tag r" id="sum-fft-tag"></div></div>
+          <div class="hint">Computed by a radix-2 Cooley–Tukey FFT written in
+            <code>js/engine.js</code> — not by the browser's analyser. Bin resolution is
+            <code>Δf = sample rate ÷ N</code>, shown top right. Set the window to
+            <b>Rectangular</b> and nudge a partial off a bin centre to watch spectral leakage smear it.</div>
+        </div>
+        <div class="card">
+          <h3>Detected peaks</h3>
+          <div class="scroll-x"><table class="data" id="sum-peaks"></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- noise cancelling ---- -->
+  <div id="math-anc" class="hidden">
+    <div class="split wide">
+      <div>
+        <div class="card">
+          <h3>Two sources</h3>
+          <div class="ctl">
+            <label>Frequency <span class="val" id="anc-freq-v">400 Hz</span></label>
+            <input type="range" id="anc-freq" min="80" max="2000" step="10" value="400">
+          </div>
+          <div class="ctl">
+            <label>Source B phase <span class="val" id="anc-phase-v">180°</span></label>
+            <input type="range" id="anc-phase" min="0" max="360" step="1" value="180">
+          </div>
+          <div class="ctl">
+            <label>Source B amplitude <span class="val" id="anc-amp-v">100%</span></label>
+            <input type="range" id="anc-amp" min="0" max="1.5" step="0.01" value="1">
+          </div>
+          <div class="row wrap">
+            <button class="btn" id="anc-invert">Flip B polarity (180°)</button>
+            <button class="btn on" id="anc-anim">Animate</button>
+          </div>
+          <div class="hint">Drag the two dots on the field, and drag the white ✕ listener.
+            Speed of sound assumed 343 m/s; the plate is 4 m across.</div>
+        </div>
+        <div class="card">
+          <h3>At the listener</h3>
+          <div id="anc-read"></div>
+          <div class="viz" style="margin-top:10px"><canvas id="anc-1d" data-h="150"></canvas><div class="tag">A, B and A+B at the listener</div></div>
+        </div>
+        <div class="card">
+          <h3>Hear it</h3>
+          <div class="row wrap">
+            <button class="btn" id="anc-hear-a">Source A only</button>
+            <button class="btn" id="anc-hear-both">A + B</button>
+            <button class="btn" id="anc-hear-stop">■ Stop</button>
+          </div>
+          <div class="hint">Plays the two tones with the exact phase and amplitude relationship
+            shown, summed at the listener position. Use headphones — at 180° and equal amplitude
+            the sum should vanish almost completely.</div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Interference field</h3>
+          <div class="viz"><canvas id="anc-field" data-h="470" style="cursor:crosshair"></canvas>
+            <div class="tag">Pressure amplitude · blue = cancelled, amber = reinforced</div></div>
+          <div class="legend">
+            <span><i style="background:#2b6cff"></i>Destructive (quiet)</span>
+            <span><i style="background:#161a24"></i>Neutral</span>
+            <span><i style="background:#ffb347"></i>Constructive (loud)</span>
+          </div>
+          <div class="hint">Each pixel shows the steady-state amplitude of
+            <code>A·sin(ωt − k·r_A) + B·sin(ωt − k·r_B + φ)</code>, with 1/r spreading loss.
+            Dark curves are <b>nodal lines</b> — places where the two waves arrive exactly out of
+            phase and cancel. This is why real ANC only works in a small zone around your ear:
+            move half a wavelength and a null becomes a peak.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- aliasing ---- -->
+  <div id="math-conv" class="hidden">
+    <div class="split wide">
+      <div>
+        <div class="card">
+          <h3>Sampling</h3>
+          <div class="ctl">
+            <label>Signal frequency <span class="val" id="alias-f-v">300 Hz</span></label>
+            <input type="range" id="alias-f" min="20" max="4000" step="5" value="300">
+          </div>
+          <div class="ctl">
+            <label>Sample rate <span class="val" id="alias-sr-v">2000 Hz</span></label>
+            <input type="range" id="alias-sr" min="200" max="8000" step="20" value="2000">
+          </div>
+          <div class="ctl">
+            <label>Bit depth <span class="val" id="alias-bits-v">16 bits</span></label>
+            <input type="range" id="alias-bits" min="2" max="16" step="1" value="16">
+          </div>
+          <div id="alias-read"></div>
+        </div>
+        <div class="card">
+          <h3>Why it matters</h3>
+          <div class="note">
+            <p><b>Nyquist:</b> a sample rate of <code>fs</code> can only represent frequencies below
+            <code>fs/2</code>. Anything above folds back down and reappears as a
+            <i>different, lower</i> frequency that was never there.</p>
+            <p>Drag the signal above half the sample rate and watch the reconstructed curve
+            (amber) stop following the true wave (grey). That impostor frequency is aliasing,
+            and it is why every distortion plugin oversamples: clipping generates harmonics far
+            above Nyquist which would otherwise fold back as inharmonic mush.</p>
+            <p><b>Bit depth</b> sets the noise floor: roughly <code>6.02 × bits</code> dB of dynamic
+            range. Drop it to 4 bits and the staircase is plainly visible.</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Continuous signal vs its samples</h3>
+          <div class="viz"><canvas id="alias-wave" data-h="270"></canvas></div>
+          <div class="legend">
+            <span><i style="background:#5d6880"></i>True signal</span>
+            <span><i style="background:#3ddbd9"></i>Samples</span>
+            <span><i style="background:#ffb347"></i>What gets reconstructed</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Quantisation error</h3>
+          <div class="viz"><canvas id="alias-err" data-h="160"></canvas><div class="tag">sample − true value</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Everything runs locally in your browser with the Web Audio API — no uploads, no servers, no
+  dependencies. Source: <a href="https://github.com/volcinator8000/music-visualizer">github.com/volcinator8000/music-visualizer</a>
+</footer>
+
+<script src="js/engine.js"></script>
+<script src="js/voices.js"></script>
+<script src="js/keyboard.js"></script>
+<script src="js/view-instruments.js"></script>
+<script src="js/view-notes.js"></script>
+<script src="js/view-amp.js"></script>
+<script src="js/view-pedals.js"></script>
+<script src="js/view-math.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
